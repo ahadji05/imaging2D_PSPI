@@ -93,9 +93,9 @@ extrap_time_start = time.time()
 
 image = extrapAndImaging( ns, config.nvel, config.nz, \
     config.nextrap, config.nt, config.nw, config.nx, \
-    config.dz, config.w, config.kx, config.refVel, \
+    config.dz, config.w, config.kx, \
     velocity_model, pulse_forw_fs[:,0:config.nw,:], \
-    pulse_back_fs[:,0:config.nw,:] )
+    pulse_back_fs[:,0:config.nw,:], path_to_output)
 
 #---------------------------------------------------------------------
 extrap_time_stop = time.time()
