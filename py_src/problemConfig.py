@@ -38,8 +38,6 @@ class problemConfig:
         self.dt = (self.tmax-self.tmin) / self.nt
 
         self.nvel = int(df.loc["nvel"][0])
-        self.dv = (vmax-vmin) / (self.nvel - 1)
-        self.refVel = [round(vmin + i*self.dv,1) for i in range(self.nvel)]
 
         self.dkx = 2*pi*1/float( self.xmax - self.xmin )
         self.kx = np.fft.fftfreq(self.nx)*self.nx*self.dkx
@@ -58,4 +56,4 @@ class problemConfig:
         print("Time steps:", self.nt,", dt =",round(1000*self.dt,2),"ms")
         print("Number of extrapolation steps:", self.nextrap)
         print("Number of propagating frequencies:",self.nw)
-        print("PSPI reference velocities(",self.nvel,"):",self.refVel)
+        print("PSPI reference velocities:",self.nvel)
