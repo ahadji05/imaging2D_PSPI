@@ -25,3 +25,11 @@ def makeRickerWavelet(isx, isz, nt, nx, tj, xi, init_depth, v):
             wavelet[:,i] += np.asarray(list(map(ricker_wv_map, t_t0)))/np.sqrt(r)
     
     return wavelet
+
+# create N Phase-Shift operators for the range [0-maxk]
+def createKappa(vmin, wmax, N):
+    maxk = wmax/vmin
+    deltak = maxk / (N-1)
+    kappa = np.array([i*deltak for i in range(N)])
+
+    return kappa, deltak
