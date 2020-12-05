@@ -72,3 +72,14 @@ class Test_Interpolation_coefficients(unittest.TestCase):
         self.assertAlmostEqual(coeff[2,1], coeff[2,2], delta=sdelta)
         self.assertAlmostEqual(coeff[2,1], 3.0*coeff[2,0], delta=sdelta)
         self.assertAlmostEqual(coeff[2,2], 3.0*coeff[2,3], delta=sdelta)
+
+    
+
+    def test_interpolation_isolated(self):
+
+        # assuming we have 3 ref. velocities and 4 lateral positions
+        # => table coeff will be of shape(4,3)
+        coeff = np.array([[0.2,0.5,0.3],[0.25, 0.25, 0.5],[0.3,0.4,0.3],[0.15,0.20,0.65]], dtype=np.float32)
+
+        # since we have 3 ref. velocities we need to assume that we have 3 wavefields
+        
