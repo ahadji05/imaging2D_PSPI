@@ -8,9 +8,8 @@ from cmath import exp as cexp
 # pulse_forw_fs: forward propagated pulse (frequency-space domain)
 # pulse_back_fs: back propagated shot (frequency-space domain)
 def extrapAndImaging(ns, nvel, nz, nextrap, nt, nw, nx, \
-    dz, w, kx, refVel, vel_model, pulse_forw_fs, pulse_back_fs):
-    
-    print(" - wavefields shapes:", pulse_forw_fs.shape)
+    dz, w, kx, vel_model, pulse_forw_fs, pulse_back_fs, \
+    path_to_output):
 
     image = np.zeros(shape=(ns,nz,nx), dtype=np.float32)
 
@@ -20,8 +19,22 @@ def extrapAndImaging(ns, nvel, nz, nextrap, nt, nw, nx, \
 
     for l in range(nextrap):
 
-        if l % 10 ==0:
-            print("  - depth:",round((l+1)*dz,1))
+        vmin = np.min(vel_model[l,:])
+        vmax = np.max(vel_model[l,:])
+        dvel = (vmax-vmin) / (nvel-1)
+        refVel = np.array([vmin + i*dvel for i in range(nvel)])
+
+        # savefigures for more in-depth analysis and/or debug
+        depth = round((l+1)*dz,1)
+        print("  - depth:", depth,"refvel:",refVel)
+        if l == 0 or l % 10 == 0:
+            sIdx = 2 # just a hard-coded choice (index)
+            filenameForw = path_to_output+"/forw_s"+str(sIdx)+"_depth"+str(depth)+"_.png"
+            filenameBack = path_to_output+"/back_s"+str(sIdx)+"_depth"+str(depth)+"_.png"
+            filenameImage = path_to_output+"/image_s"+str(sIdx)+"_depth"+str(depth)+"_.png"
+            plotWavefield(pulse_forw_fs[sIdx,:,:], filenameForw)
+            plotWavefield(pulse_back_fs[sIdx,:,:], filenameBack)
+            plotImage(image[sIdx,:,:], filenameImage)
 
         # Phase-shift in f-x domain
         for j in range(nw):
@@ -62,8 +75,8 @@ def extrapAndImaging(ns, nvel, nz, nextrap, nt, nw, nx, \
         coeff = find_coeff(vel_model[l,:], refVel)
         coeff = norm_coefficients(coeff)
 
-        pulse_forw_fs[:,:,:] = 0; pulse_back_fs[:,:,:] = 0
         # Interpolation
+        pulse_forw_fs[:,:,:] = 0; pulse_back_fs[:,:,:] = 0
         for s in range(ns):
             for i in range(nx):
                 for n in range(nvel):
@@ -76,7 +89,6 @@ def extrapAndImaging(ns, nvel, nz, nextrap, nt, nw, nx, \
                 np.conj(pulse_back_fs[s,:,:]) ).real, axis=0)
     
     return image
-
 
 def find_coeff(velocities, ref_velocities):
     nx = len(velocities)
@@ -94,12 +106,31 @@ def find_coeff(velocities, ref_velocities):
     return coeff
 
 def norm_coefficients(coeff):
+    ncoeff = np.zeros_like(coeff)
+
     for i in range(coeff.shape[0]):
         sum_ = 0.0
         for n in range(coeff.shape[1]):
             sum_ += coeff[i,n]
         A = 1.0 / sum_
         for n in range(coeff.shape[1]):
-            coeff[i,n] *= A
-    
-    return coeff
+            ncoeff[i,n] = coeff[i,n] * A
+
+    return ncoeff
+
+from matplotlib import pyplot as plt
+
+def plotWavefield(wf_fs, fname):
+    wf_st = spfft.ifft(wf_fs, axis=0)
+    plt.imshow(wf_st.real, aspect=wf_st.shape[1]/wf_st.shape[0] ,cmap='gray')
+    plt.grid()
+    plt.colorbar()
+    plt.savefig(fname, dpi=100)
+    plt.close()
+
+def plotImage(img, fname):
+    plt.imshow(img, aspect=img.shape[1]/img.shape[0] ,cmap='gray')
+    plt.grid()
+    plt.colorbar()
+    plt.savefig(fname, dpi=100)
+    plt.close()
