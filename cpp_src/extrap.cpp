@@ -23,6 +23,7 @@ float find_max_vel(int , float * );
 void define_ref_velocities(int , float , float , float * );
 void extrap_ref_wavefields(fcomp * , fcomp * , fcomp * , int * , int, int , int , int );
 int * prep_lookUp_indices(int , float * , int , int , float * , int , int , float * );
+float * prep_interpolation_coeff(float * , int , int , int );
 
 bool assertForNanComplex(int , fcomp * , std::string );
 bool assertForNanFloat(int , float * , std::string );
@@ -38,12 +39,9 @@ void extrapAndImag(int ns, int nref, int nz, int nextrap, int nt, int nf, int nx
     float * omega, float * kx, float * velmod, \
     fcomp * forw_wf, fcomp * back_wf, float * image){
 
-    int imgSize = nz * nx;
-    int wfSize = nf * nx;
-    bool check; // to check for Nan values
+    int imgSize = nz * nx; // images size
+    int wfSize = nf * nx; // wavefields size
 
-    float * refVels = new float[nref];
-    float * coeff = new float[nref*nx];
     fcomp * base_forw = new fcomp[ns*wfSize];
     fcomp * base_back = new fcomp[ns*wfSize];
     fcomp * ref_forw = new fcomp[ns*nref*wfSize];
@@ -55,28 +53,18 @@ void extrapAndImag(int ns, int nref, int nz, int nextrap, int nt, int nf, int nx
         std::memcpy(&base_forw[s*wfSize], &forw_wf[s*nt*nx], wfSize*sizeof(fcomp));
         std::memcpy(&base_back[s*wfSize], &back_wf[s*nt*nx], wfSize*sizeof(fcomp));
     }
-    check = assertForNanComplex(ns*nf*nx, base_forw, "nan in copied base_forw");
-    if (check == true) exit(1);
-    check = assertForNanComplex(ns*nf*nx, base_back, "nan in copied base_back");    
-    if (check == true) exit(1);
 
     // prepare table of operators
     f_kx_operators forwOps(Nk, kmax, Nkx, dz, 'f', &kx[0]); // 'f' : forward-in-time
     f_kx_operators backOps(Nk, kmax, Nkx, dz, 'b', &kx[0]); // 'b' : backward-in-time
 
-    // prepare look-up indices
+    // prepare look-up indices & interpolation coefficients
     int * Idx = prep_lookUp_indices(nf, &omega[0], nextrap, nx, &velmod[0], nref, Nk, forwOps.k.data());
+    float * coeff = prep_interpolation_coeff(velmod, nextrap, nref, nx);
 
     for(int l=0; l<nextrap; ++l){ // start loop over depths
 
-        std::cout << "depth " << l << "\n";
-
-        // define the coefficients for interpolation
-        float vmin = find_min_vel(nx, &velmod[l*nx]);
-        float vmax = find_max_vel(nx, &velmod[l*nx]);
-        define_ref_velocities(nref, vmin, vmax, &refVels[0]);
-        find_coeff(nx, &velmod[l*nx], nref, &refVels[0], &coeff[0]);
-        norm_coeff(nx, nref, &coeff[0]);
+        std::cout << "Depth " << l << "\n";
 
         // phase-shifts in the f-x domain.
         phase_shift_forw(ns, nf, nx, &base_forw[0], &velmod[l*nx], &omega[0], dz);
@@ -103,28 +91,21 @@ void extrapAndImag(int ns, int nref, int nz, int nextrap, int nt, int nf, int nx
         
         // interpolation : from ref. wavefields to base wavefields
         for(int s=0; s<ns; ++s){
-            interpolate(nf, nx, nref, &coeff[0], &ref_forw[s*nf*nref*nx], &base_forw[s*nf*nx]);
-            interpolate(nf, nx, nref, &coeff[0], &ref_back[s*nf*nref*nx], &base_back[s*nf*nx]);
+            interpolate(nf, nx, nref, &coeff[l*nref*nx], &ref_forw[s*nf*nref*nx], &base_forw[s*nf*nx]);
+            interpolate(nf, nx, nref, &coeff[l*nref*nx], &ref_back[s*nf*nref*nx], &base_back[s*nf*nx]);
         }
-        check = assertForNanComplex(ns*nf*nx, base_forw, "extrap base_forw: nan appeared\n");
-        if (check == true) exit(1);
-        check = assertForNanComplex(ns*nf*nx, base_back, "extrap base_back: nan appeared\n");
-        if (check == true) exit(1);
 
         // image depth slide
         cross_corr(ns, wfSize, nx, nf, base_forw, base_back, imgSize, l, image);
-        check = assertForNanFloat(ns*nz*nx, image, "image: nan appeared\n");
-        if (check == true) exit(1);
 
     } // end loop over depths
 
+    delete [] coeff;
     delete [] Idx;
     delete [] base_forw;
     delete [] base_back;
     delete [] ref_forw;
     delete [] ref_back;
-    delete [] coeff;
-    delete [] refVels;
 }
 
 bool assertForNanComplex(int N, fcomp * array, std::string text){
@@ -324,6 +305,23 @@ int * prep_lookUp_indices(int Nf, float * omega, int Nextrap, int Nx, float * ve
     }
 
     return table;
+}
+
+float * prep_interpolation_coeff(float * velmod, int nextrap, int nref, int nx){
+
+    float * coeff = new float[nextrap*nref*nx];
+    float * refVels = new float[nref];
+
+    for(int l=0; l<nextrap; ++l){
+        float vmin = find_min_vel(nx, &velmod[l*nx]);
+        float vmax = find_max_vel(nx, &velmod[l*nx]);
+        define_ref_velocities(nref, vmin, vmax, refVels);
+        find_coeff(nx, &velmod[l*nx], nref, refVels, &coeff[l*nref*nx]);
+        norm_coeff(nx, nref, &coeff[l*nref*nx]);
+    }
+
+    delete [] refVels;
+    return coeff;
 }
 
 } // end extern "C"
