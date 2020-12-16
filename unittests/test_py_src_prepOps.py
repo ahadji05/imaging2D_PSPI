@@ -11,8 +11,8 @@ sdelta = 1e-5
 
 #   ------------------------------------------
 
-# from prepOps import makeBackPSoperators as makeForwPSoperators
-from prepOps import makeForwPSoperators
+from pyprepOps import forwOperators as makeForwPSoperators
+from pyprepOps import backOperators as makeBackPSoperators
 from matplotlib import pyplot as plt
 
 class Test_makeForwPSoperators(unittest.TestCase):
