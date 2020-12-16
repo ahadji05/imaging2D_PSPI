@@ -1,13 +1,15 @@
 
 import sys
 import os
-from ctypes import CDLL, POINTER, c_int, c_void_p, c_float, CFUNCTYPE
+from ctypes import CDLL, POINTER, c_int, c_void_p, c_float, c_wchar
 from numpy.ctypeslib import ndpointer
 import numpy as np
 
 #------------------------
 interface_path = os.path.dirname(__file__)
+
 extrap = CDLL(interface_path + '/extrap.so')
+prepOps = CDLL(interface_path + '/prepOps.so')
 mkl_fft = CDLL(interface_path + '/mkl_fft.so')
 imag_cpu = CDLL(interface_path + '/imag_condition_cpu.so')
 interpolate_cpu = CDLL(interface_path + '/interpolate_cpu.so')
@@ -15,6 +17,18 @@ interpolate_cpu = CDLL(interface_path + '/interpolate_cpu.so')
 #--------------------------
 #   extrap
 #--------------------------
+
+extrapolation = extrap.extrapAndImag
+extrapolation.restype = c_void_p
+extrapolation.argtypes = [c_int, c_int, c_int, c_int,
+                          c_int, c_int, c_int,
+                          c_float, c_int, c_float, c_int,
+                          ndpointer( dtype=np.float32, flags=("C","A") ),
+                          ndpointer( dtype=np.float32, flags=("C","A") ),
+                          ndpointer( dtype=np.float32, flags=("C","A") ),
+                          ndpointer( dtype=np.complex64, flags=("C","A") ),
+                          ndpointer( dtype=np.complex64, flags=("C","A") ),
+                          ndpointer( dtype=np.float32, flags=("C","A") )]
 
 PSforw = extrap.phase_shift_forw
 PSforw.restype = c_void_p
@@ -32,6 +46,24 @@ PSback.argtypes = [c_int, c_int, c_int,
                    ndpointer( dtype=np.float32, flags=("C","A") ),
                    c_float]
 
+
+#--------------------------
+#   prepOps
+#--------------------------
+
+test_class_prepOps = prepOps.testClassWrapperFor_f_kx_operators
+test_class_prepOps.restype = c_void_p
+test_class_prepOps.argtypes = [ndpointer( dtype=np.float32, flags=("C","A") ),
+                               ndpointer( dtype=np.float32, flags=("C","A") ),
+                               ndpointer( dtype=np.complex64, flags=("C","A") ),
+                               c_int, c_float, c_int, c_float, c_wchar]
+
+chooseOperatorIndex = prepOps.chooseOperatorIndex
+chooseOperatorIndex.restype = c_int
+chooseOperatorIndex.argtypes = [c_int,
+                               ndpointer( dtype=np.float32, flags=("C","A") ),
+                               c_float]
+                               
 #--------------------------
 #   mkl_fft
 #--------------------------
