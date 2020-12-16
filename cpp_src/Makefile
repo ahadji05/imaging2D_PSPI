@@ -20,25 +20,45 @@ INC = -DMKL_ILP64 -m64 -I$(MKLROOT)/include
 
 #select compilers and flags
 CXX=g++
-CXXFLAGS = -O3 -std=c++11 $(INC)
+CXXFLAGS = -Wall -shared -fPIC -O3 -std=c++11
 
 
 # ------------------------------------------------
 #     no need to edit below that line
 
-all: extrap mkl_fft interpolate_cpu imag_condition_cpu
+remake: clean all
 
-extrap:
-	$(CXX) -shared -fPIC $(CXXFLAGS) -o extrap.so extrap.cpp
+all: extrap prepOps mkl_fft imag_condition_cpu interpolate_cpu
 
-mkl_fft:
-	$(CXX) -shared -fPIC $(CXXFLAGS) -o mkl_fft.so mkl_fft.cpp
+extrap: interpolate.o imag_condition.o extrap.o prepOps.o mkl_fft.o
+	$(CXX) $(CXXFLAGS) -o extrap.so extrap.o prepOps.o mkl_fft.o interpolate.o imag_condition.o $(LFLAGS)
 
-interpolate_cpu:
-	$(CXX) -shared -fPIC $(CXXFLAGS) -o interpolate_cpu.so interpolate.cpp
+extrap.o:
+	$(CXX) -Wall $(CXXFLAGS) $(INC) -c extrap.cpp
 
-imag_condition_cpu:
-	$(CXX) -shared -fPIC $(CXXFLAGS) -o imag_condition_cpu.so imag_condition.cpp
+prepOps: prepOps.o
+	$(CXX) $(CXXFLAGS) -o prepOps.so prepOps.o
+
+prepOps.o:
+	$(CXX) $(CXXFLAGS) -c prepOps.cpp
+
+mkl_fft: mkl_fft.o
+	$(CXX) $(CXXFLAGS) $(INC) -o mkl_fft.so mkl_fft.o $(LFLAGS)
+
+mkl_fft.o:
+	$(CXX) -Wall $(CXXFLAGS) $(INC) -c mkl_fft.cpp
+
+interpolate_cpu: interpolate_cpu.o
+	$(CXX) $(CXXFLAGS) -o interpolate_cpu.so interpolate.o
+
+interpolate_cpu.o:
+	$(CXX) -Wall $(CXXFLAGS) -c interpolate.cpp
+
+imag_condition_cpu: imag_condition_cpu.o
+	$(CXX) $(CXXFLAGS) -o imag_condition_cpu.so imag_condition.o -fopenmp
+
+imag_condition_cpu.o: imag_condition.cpp
+	$(CXX) -Wall $(CXXFLAGS) -c imag_condition.cpp -fopenmp
 
 #remove executable and object files
 clean:
