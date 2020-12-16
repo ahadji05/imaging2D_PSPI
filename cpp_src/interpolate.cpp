@@ -1,7 +1,5 @@
 
-#include <cmath>
-#include "types.h"
-#include <iostream>
+#include "interpolate.h"
 
 extern "C"
 
@@ -22,9 +20,10 @@ void interpolate(int nf, int nx, int nref, float * coeff, \
 
     int shotSz = nf*nx;
 
-    for(int n=0; n<nref; ++n){
-        for(int j=0; j<nf; ++j){
-            for(int i=0; i<nx; ++i){
+    for(int j=0; j<nf; ++j){
+        for(int i=0; i<nx; ++i){
+            finalWavefield[j*nx + i] = fcomp(0.0,0.0);
+            for(int n=0; n<nref; ++n){
                 finalWavefield[j*nx + i] += coeff[i*nref + n] * refWavefields[n*shotSz + j*nx + i];
             }
         }
