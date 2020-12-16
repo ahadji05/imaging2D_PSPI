@@ -7,9 +7,12 @@ from scipy import ndimage
 import readShotFiles
 
 sys.path.append('py_src/')
-from extrap import extrapAndImaging
+# from extrap import extrapAndImaging
 import problemConfig as pConfig
 import util
+
+sys.path.append('./cpp_src/')
+from interface import extrapolation
 
 import time
 
@@ -32,6 +35,7 @@ velocity_model = np.genfromtxt(file_vel, delimiter=',')
 slownes = 1.0 / velocity_model
 slownes = ndimage.gaussian_filter(slownes, sigma=2)
 velocity_model = 1.0 / slownes
+velocity_model = velocity_model.astype(np.float32)
 np.savetxt(path_to_output+"/smoothed_velmod.csv", velocity_model, delimiter=',')
 vmin = np.min(velocity_model)
 vmax = np.max(velocity_model)
@@ -90,12 +94,15 @@ print("extrapolation and imaging ...")
 
 extrap_time_start = time.time()
 #---------------------------------------------------------------------
+kmax = config.w[config.nw] / vmin
+image = np.zeros((ns,config.nz, config.nx), dtype=np.float32)
+omega = config.w.astype(np.float32)
+kxx = config.kx.astype(np.float32)
+print("wmax:", config.w[config.nw])
 
-image = extrapAndImaging( ns, config.nvel, config.nz, \
-    config.nextrap, config.nt, config.nw, config.nx, \
-    config.dz, config.w, config.kx, \
-    velocity_model, pulse_forw_fs[:,0:config.nw,:], \
-    pulse_back_fs[:,0:config.nw,:], path_to_output)
+extrapolation(ns, config.nvel, config.nz, config.nextrap, config.nt, \
+    config.nw, config.nx, config.dz, 1000, kmax, config.nx, omega, kxx, \
+    velocity_model, pulse_forw_fs, pulse_back_fs, image)
 
 #---------------------------------------------------------------------
 extrap_time_stop = time.time()
@@ -113,35 +120,8 @@ print("    Extrapolation and Imaging (s)  :",extrap_time_total)
 
 final_image = np.zeros((config.nz,config.nx), dtype=np.float32)
 for s in range(ns):
-    final_image += image[s]
     np.savetxt(path_to_output+"/image"+str(shot_isx[s])+"_.csv", image[s], delimiter=',')
+    final_image += image[s]
 
 #save final image
 np.savetxt(path_to_output+"/final_image.csv", final_image, delimiter=',')
-
-# import matplotlib.pyplot as plt
-# print("option:", shot_isx[option])
-
-# plt.imshow(pulse_forw_st[option], aspect=config.nx/config.nt)
-# plt.title("pulse_forw_st")
-# plt.show()
-# plt.close()
-
-# plt.imshow(pulse_forw_fs[option].real, aspect=config.nx/config.nt)
-# plt.title("pulse_forw_fs")
-# plt.show()
-# plt.close()
-
-# plt.imshow(pulse_back_st[option], aspect=config.nx/config.nt)
-# plt.title("pulse_back_st")
-# plt.show()
-# plt.close()
-
-# plt.imshow(pulse_back_fs[option].real, aspect=config.nx/config.nt)
-# plt.title("pulse_back_fs")
-# plt.show()
-# plt.close()
-
-# plt.plot(np.abs(pulse_back_fs[option])[:200,100])
-# plt.show()
-# plt.close()
