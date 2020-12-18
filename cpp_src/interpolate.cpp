@@ -20,6 +20,7 @@ void interpolate(int nf, int nx, int nref, float * coeff, \
 
     int shotSz = nf*nx;
 
+    #pragma omp parallel for schedule(dynamic,1)
     for(int j=0; j<nf; ++j){
         for(int i=0; i<nx; ++i){
             finalWavefield[j*nx + i] = fcomp(0.0,0.0);

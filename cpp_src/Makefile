@@ -5,12 +5,16 @@ INTEL = /opt/intel
 
 #path to directory mkl
 MKLROOT = $(INTEL)/mkl
-
 # MKLROOT = $(EBROOTIMKL)/mkl
 
 #define required for the linking MKL libraries
+# --------------------------------------------
 MKLLIB=-L${MKLROOT}/lib/intel64 -Wl,--no-as-needed \
--lmkl_intel_ilp64 -lmkl_sequential -lmkl_core -lpthread -lm -ldl
+-lmkl_intel_ilp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lm -ldl #Intel's OpenMP
+
+# MKLLIB=-L${MKLROOT}/lib/intel64 -Wl,--no-as-needed \
+# -lmkl_intel_ilp64 -lmkl_sequential -lmkl_core -lpthread -lm -ldl # NO OpenMP 
+#---------------------------------------------
 
 #linking flags
 LFLAGS= $(MKLLIB)
@@ -20,45 +24,45 @@ INC = -DMKL_ILP64 -m64 -I$(MKLROOT)/include
 
 #select compilers and flags
 CXX=g++
-CXXFLAGS = -Wall -shared -fPIC -O3 -std=c++11
+CXXFLAGS = -shared -fPIC -O3 -std=c++11
 
 
 # ------------------------------------------------
 #     no need to edit below that line
 
-remake: clean all
+all: imaging interpolate mkl_fft prepOps extrap
 
-all: extrap prepOps mkl_fft imag_condition_cpu interpolate_cpu
+extrap: extrap.o
+	$(CXX) $(CXXFLAGS) -o extrap.so extrap.o prepOps.o mkl_fft.o imag_condition.o interpolate.o $(LFLAGS)
 
-extrap: interpolate.o imag_condition.o extrap.o prepOps.o mkl_fft.o
-	$(CXX) $(CXXFLAGS) -o extrap.so extrap.o prepOps.o mkl_fft.o interpolate.o imag_condition.o $(LFLAGS)
-
-extrap.o:
-	$(CXX) -Wall $(CXXFLAGS) $(INC) -c extrap.cpp
+extrap.o: extrap.cpp
+	$(CXX) -Wall $(CXXFLAGS) $(INC) -c extrap.cpp -fopenmp
 
 prepOps: prepOps.o
 	$(CXX) $(CXXFLAGS) -o prepOps.so prepOps.o
 
-prepOps.o:
-	$(CXX) $(CXXFLAGS) -c prepOps.cpp
+prepOps.o: prepOps.cpp
+	$(CXX) -Wall $(CXXFLAGS) -c prepOps.cpp
 
 mkl_fft: mkl_fft.o
-	$(CXX) $(CXXFLAGS) $(INC) -o mkl_fft.so mkl_fft.o $(LFLAGS)
+	$(CXX) $(CXXFLAGS) -o mkl_fft.so mkl_fft.o $(LFLAGS)
 
-mkl_fft.o:
+mkl_fft.o: mkl_fft.cpp
 	$(CXX) -Wall $(CXXFLAGS) $(INC) -c mkl_fft.cpp
 
-interpolate_cpu: interpolate_cpu.o
-	$(CXX) $(CXXFLAGS) -o interpolate_cpu.so interpolate.o
+interpolate: interpolate.o
+	$(CXX) $(CXXFLAGS) -o interpolate_cpu.so interpolate.o -fopenmp
 
-interpolate_cpu.o:
-	$(CXX) -Wall $(CXXFLAGS) -c interpolate.cpp
+interpolate.o: interpolate.cpp
+	$(CXX) -Wall $(CXXFLAGS) -c interpolate.cpp -fopenmp
 
-imag_condition_cpu: imag_condition_cpu.o
+imaging: imaging.o
 	$(CXX) $(CXXFLAGS) -o imag_condition_cpu.so imag_condition.o -fopenmp
 
-imag_condition_cpu.o: imag_condition.cpp
+imaging.o: imag_condition.cpp
 	$(CXX) -Wall $(CXXFLAGS) -c imag_condition.cpp -fopenmp
+
+remake: clean all
 
 #remove executable and object files
 clean:

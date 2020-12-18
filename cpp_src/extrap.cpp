@@ -71,10 +71,8 @@ void extrapAndImag(int ns, int nref, int nz, int nextrap, int nt, int nf, int nx
         phase_shift_back(ns, nf, nx, &base_back[0], &velmod[l*nx], &omega[0], dz);
 
         // do FFTs : f-x -> f-kx
-        for(int s=0; s<ns; ++s){
-            fft1dforwardFrom2Darray(&base_forw[s*wfSize], nf, nx, 1);
-            fft1dforwardFrom2Darray(&base_back[s*wfSize], nf, nx, 1);
-        }
+        fft1dforwardFrom2Darray(base_forw, ns*nf, nx, 1);
+        fft1dforwardFrom2Darray(base_back, ns*nf, nx, 1);
 
         // propagate the base wavefields to reference wavefields
         extrap_ref_wavefields(&ref_forw[0], &base_forw[0], forwOps.values.data(), \
@@ -83,11 +81,8 @@ void extrapAndImag(int ns, int nref, int nz, int nextrap, int nt, int nf, int nx
             &Idx[l*nf*nref], ns, nref, nf, nx);
 
         // do IFFTs : f-kx -> f-x
-        for(int s=0; s<ns; ++s)
-            for(int n=0; n<nref; ++n){
-                fft1dbackwardFrom2Darray(&ref_forw[s*nref*wfSize + n*wfSize], nf, nx, 1);
-                fft1dbackwardFrom2Darray(&ref_back[s*nref*wfSize + n*wfSize], nf, nx, 1);
-            }
+        fft1dbackwardFrom2Darray(ref_forw, ns*nref*nf, nx, 1);
+        fft1dbackwardFrom2Darray(ref_back, ns*nref*nf, nx, 1);            
         
         // interpolation : from ref. wavefields to base wavefields
         for(int s=0; s<ns; ++s){
@@ -143,6 +138,7 @@ void phase_shift_forw(int ns, int nf, int nx, fcomp * wavefields,
 
     int shotSz = nf*nx; // size of wavefields/shot records
 
+    #pragma omp parallel for schedule(dynamic,1)
     for(int j=0; j<nf; ++j){
         for(int i=0; i<nx; ++i){
 
@@ -172,6 +168,7 @@ void phase_shift_back(int ns, int nf, int nx, fcomp * wavefields,
 
     int shotSz = nf*nx; // size of wavefields/shot records
 
+    #pragma omp parallel for schedule(dynamic,1)
     for(int j=0; j<nf; ++j){
         for(int i=0; i<nx; ++i){
 
@@ -202,21 +199,25 @@ void phase_shift_back(int ns, int nf, int nx, fcomp * wavefields,
 void extrap_ref_wavefields(fcomp * refWfds, fcomp * baseWf, fcomp * tableOps, \
     int * idx, int ns, int nref, int nf, int nx){
 
-    for(int s=0; s<ns; ++s){
-        int sIdx = s * nref * nf * nx;
+    #pragma omp parallel for schedule(dynamic,1)
+    for(int j=0; j<nf; ++j){
+            int fIdx = j * nx;
+
         for(int n=0; n<nref; ++n){
             int velIdx = n * nf * nx;
-            for(int j=0; j<nf; ++j){
-                int fIdx = j * nx;
-                int opIdx = idx[j*nref + n] * nx; //operator's index(start-position)
-                for(int xIdx=0; xIdx<nx; ++xIdx){
 
+            int opIdx = idx[j*nref + n] * nx; //operator's index(start-position)
+
+            for(int s=0; s<ns; ++s){
+                int sIdx = s * nref * nf * nx;
+                for(int xIdx=0; xIdx<nx; ++xIdx)
                     refWfds[sIdx + velIdx + fIdx + xIdx] = tableOps[opIdx + xIdx] * \
                         baseWf[s*nf*nx + fIdx + xIdx];
-                }
-            }
-        }
-    }
+                
+            } // end loop over source locations
+
+        } // end loop over reference velocities
+    } //end loop over frequencies
 }
 
 
