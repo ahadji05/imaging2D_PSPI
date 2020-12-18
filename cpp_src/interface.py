@@ -106,7 +106,7 @@ imag_cond_cpu.argtypes = [c_int, c_int, c_int, c_int,
 
 interpolation = interpolate_cpu.interpolate
 interpolation.restype = c_void_p
-interpolation.argtypes = [c_int, c_int, c_int,
+interpolation.argtypes = [c_int, c_int, c_int, c_int,
                           ndpointer( dtype=np.float32, flags=("C","A") ),
                           ndpointer( dtype=np.complex64, flags=("C","A") ),
                           ndpointer( dtype=np.complex64, flags=("C","A") )]

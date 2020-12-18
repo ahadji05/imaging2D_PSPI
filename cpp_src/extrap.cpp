@@ -9,11 +9,19 @@
 #include "mkl_fft.h"
 #include "prepOps.h"
 #include "types.h"
+#include "timer.h"
 
 extern "C"
 
 {
 
+timer tall("total time");
+timer t0("ref. wavefields extrap.");
+timer t1("imaging");
+timer t2("interpolation");
+timer t3("prepOps");
+timer t4("FFTs");
+timer t5("phase-shift");
 
 /* ----------------------- Forward function declarations ----------------------- */
 void phase_shift_forw(int , int , int , fcomp * , float * , float * , float );
@@ -39,6 +47,8 @@ void extrapAndImag(int ns, int nref, int nz, int nextrap, int nt, int nf, int nx
     float * omega, float * kx, float * velmod, \
     fcomp * forw_wf, fcomp * back_wf, float * image){
 
+    tall.start();
+
     int imgSize = nz * nx; // images size
     int wfSize = nf * nx; // wavefields size
 
@@ -55,43 +65,55 @@ void extrapAndImag(int ns, int nref, int nz, int nextrap, int nt, int nf, int nx
     }
 
     // prepare table of operators
-    f_kx_operators forwOps(Nk, kmax, Nkx, dz, 'f', &kx[0]); // 'f' : forward-in-time
-    f_kx_operators backOps(Nk, kmax, Nkx, dz, 'b', &kx[0]); // 'b' : backward-in-time
-
+    t3.start();
+    f_kx_operators forwOps(Nk, kmax, Nkx, dz, 'f', kx); // 'f' : forward-in-time
+    f_kx_operators backOps(Nk, kmax, Nkx, dz, 'b', kx); // 'b' : backward-in-time
+    
     // prepare look-up indices & interpolation coefficients
-    int * Idx = prep_lookUp_indices(nf, &omega[0], nextrap, nx, &velmod[0], nref, Nk, forwOps.k.data());
+    int * Idx = prep_lookUp_indices(nf, omega, nextrap, nx, velmod, nref, Nk, forwOps.k.data());
     float * coeff = prep_interpolation_coeff(velmod, nextrap, nref, nx);
+    t3.stop();
 
     for(int l=0; l<nextrap; ++l){ // start loop over depths
 
         std::cout << "Depth " << l << "\n";
 
         // phase-shifts in the f-x domain.
-        phase_shift_forw(ns, nf, nx, &base_forw[0], &velmod[l*nx], &omega[0], dz);
-        phase_shift_back(ns, nf, nx, &base_back[0], &velmod[l*nx], &omega[0], dz);
+        t5.start();
+        phase_shift_forw(ns, nf, nx, base_forw, &velmod[l*nx], omega, dz);
+        phase_shift_back(ns, nf, nx, base_back, &velmod[l*nx], omega, dz);
+        t5.stop();
 
         // do FFTs : f-x -> f-kx
+        t4.start();
         fft1dforwardFrom2Darray(base_forw, ns*nf, nx, 1);
         fft1dforwardFrom2Darray(base_back, ns*nf, nx, 1);
+        t4.stop();
 
         // propagate the base wavefields to reference wavefields
-        extrap_ref_wavefields(&ref_forw[0], &base_forw[0], forwOps.values.data(), \
+        t0.start();
+        extrap_ref_wavefields(ref_forw, base_forw, forwOps.values.data(), \
             &Idx[l*nf*nref], ns, nref, nf, nx);
-        extrap_ref_wavefields(&ref_back[0], &base_back[0], backOps.values.data(), \
+        extrap_ref_wavefields(ref_back, base_back, backOps.values.data(), \
             &Idx[l*nf*nref], ns, nref, nf, nx);
+        t0.stop();
 
         // do IFFTs : f-kx -> f-x
+        t4.start();
         fft1dbackwardFrom2Darray(ref_forw, ns*nref*nf, nx, 1);
         fft1dbackwardFrom2Darray(ref_back, ns*nref*nf, nx, 1);            
+        t4.stop();
         
         // interpolation : from ref. wavefields to base wavefields
-        for(int s=0; s<ns; ++s){
-            interpolate(nf, nx, nref, &coeff[l*nref*nx], &ref_forw[s*nf*nref*nx], &base_forw[s*nf*nx]);
-            interpolate(nf, nx, nref, &coeff[l*nref*nx], &ref_back[s*nf*nref*nx], &base_back[s*nf*nx]);
-        }
+        t2.start();
+        interpolate(ns, nf, nx, nref, &coeff[l*nref*nx], ref_forw, base_forw);
+        interpolate(ns, nf, nx, nref, &coeff[l*nref*nx], ref_back, base_back);
+        t2.stop();
 
         // image depth slide
+        t1.start();
         cross_corr(ns, wfSize, nx, nf, base_forw, base_back, imgSize, l, image);
+        t1.stop();
 
     } // end loop over depths
 
@@ -101,6 +123,15 @@ void extrapAndImag(int ns, int nref, int nz, int nextrap, int nt, int nf, int nx
     delete [] base_back;
     delete [] ref_forw;
     delete [] ref_back;
+    tall.stop();
+
+    tall.dispInfo();
+    t0.dispInfo();
+    t1.dispInfo();
+    t2.dispInfo();
+    t3.dispInfo();
+    t4.dispInfo();
+    t5.dispInfo();
 }
 
 bool assertForNanComplex(int N, fcomp * array, std::string text){

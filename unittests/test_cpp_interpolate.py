@@ -92,7 +92,7 @@ class Test_Interpolation_coefficients(unittest.TestCase):
         nx = 4 # because wavefields have 4 values in the contiguous direction.
         nref = 3 # because coefficients have 3 values per position
 
-        interpolation(nf, nx, nref, coeff, refWavefields, finalWavefield)
+        interpolation(1, nf, nx, nref, coeff, refWavefields, finalWavefield)
 
         # check all values one-by-one
         self.assertAlmostEqual(finalWavefield[0].real , 1.30, delta=sdelta)
@@ -128,7 +128,7 @@ class Test_Interpolation_coefficients(unittest.TestCase):
 
         finalWavefield = np.zeros((nf,nx), dtype=np.complex64)        
 
-        interpolation(nf, nx, nref, coeff, refWavefields, finalWavefield)
+        interpolation(1, nf, nx, nref, coeff, refWavefields, finalWavefield)
 
         # # since all wavefields over frequencies are the same, check that at the end they
         # # have as expected same values
