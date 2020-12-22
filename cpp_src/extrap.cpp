@@ -1,11 +1,10 @@
 
 #include <iostream>
-#include<cstring>
-#include <fstream>
+#include <cstring>
 #include <cmath>
 
-#include "interpolate.h"
 #include "imag_condition.h"
+#include "interpolate.h"
 #include "mkl_fft.h"
 #include "prepOps.h"
 #include "types.h"
@@ -32,7 +31,6 @@ void define_ref_velocities(int , float , float , float * );
 void extrap_ref_wavefields(fcomp * , fcomp * , fcomp * , int * , int, int , int , int );
 int * prep_lookUp_indices(int , float * , int , int , float * , int , int , float * );
 float * prep_interpolation_coeff(float * , int , int , int );
-
 bool assertForNanComplex(int , fcomp * , std::string );
 bool assertForNanFloat(int , float * , std::string );
 /* -------------------------------------------------------------------------------*/
@@ -60,8 +58,12 @@ void extrapAndImag(int ns, int nref, int nz, int nextrap, int nt, int nf, int nx
 
     // read wavefields to new storages selecting propagating frequencies only (nf < nt)!
     for(int s=0; s<ns; ++s){
-        std::memcpy(&base_forw[s*wfSize], &forw_wf[s*nt*nx], wfSize*sizeof(fcomp));
-        std::memcpy(&base_back[s*wfSize], &back_wf[s*nt*nx], wfSize*sizeof(fcomp));
+        for(int j=0; j<nf; ++j){
+            for(int i=0; i<nx; ++i){
+                base_forw[s*wfSize + j*nx + i] = forw_wf[s*nt*nx + j*nx + i];
+                base_back[s*wfSize + j*nx + i] = back_wf[s*nt*nx + j*nx + i];
+            }
+        }
     }
 
     // prepare table of operators
@@ -175,7 +177,7 @@ void phase_shift_forw(int ns, int nf, int nx, fcomp * wavefields,
 
             float vel = velSlide[i];
             float k = omega[j] / vel;    
-            fcomp term = std::exp( -fcomp(0.0,1.0) * k * dz );
+            fcomp term = thrust::exp( -fcomp(0.0,1.0) * k * dz );
 
             for(int is=0; is<ns; ++is)
                 wavefields[is*shotSz + j*nx + i] *= term;
@@ -205,7 +207,7 @@ void phase_shift_back(int ns, int nf, int nx, fcomp * wavefields,
 
             float vel = velSlide[i];
             float k = omega[j] / vel;    
-            fcomp term = std::exp( +fcomp(0.0,1.0) * k * dz );
+            fcomp term = thrust::exp( +fcomp(0.0,1.0) * k * dz );
 
             for(int is=0; is<ns; ++is)
                 wavefields[is*shotSz + j*nx + i] *= term;

@@ -18,7 +18,7 @@ void cross_corr(int ns, int shotSize, int nx, int nf, fcomp * forw, fcomp * back
     for (int is=0; is<ns; ++is)
         for (int j=0; j<nf; j++)
             for (int i=0; i<nx; i++)
-                conv[is*nx + i] += forw[is*shotSize + j*nx + i] * std::conj(back[is*shotSize + j*nx + i]);
+                conv[is*nx + i] += forw[is*shotSize + j*nx + i] * thrust::conj(back[is*shotSize + j*nx + i]);
 
     #pragma omp parallel for schedule(dynamic,1)
     for (int is=0; is<ns; ++is)
