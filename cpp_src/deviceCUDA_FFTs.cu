@@ -1,0 +1,92 @@
+
+#include "deviceCUDA_FFTs.h"
+
+extern "C"
+{
+
+void cufftFORW_Batched1dSignals(thrust::complex<float> * d_signals, int Nbatch, int NX){
+
+	int dimN[NRANK] = {NX}; // signal's size (number of spatial points)
+	
+	int inembed[NRANK] = {NX}; // storage is same as dimN - no-padding!
+	int onembed[NRANK] = {NX};
+	
+	int inputStride = 1; // dist. between successive input elements
+	int outputStride = inputStride;
+	
+	int inputDist = NX; // dist. between 1st elem. in successive input signals
+	int outputDist = inputDist;
+	
+// make cuFFT plan
+	cufftHandle plan;
+	cufftPlanMany(&plan, NRANK, dimN, \
+				inembed, inputStride, inputDist, \
+				onembed, outputStride, outputDist, \
+				CUFFT_C2C, Nbatch);
+	
+//execute in-place batched FFTs
+	cufftExecC2C(plan, (cufftComplex *)d_signals, (cufftComplex *)d_signals, CUFFT_FORWARD);
+
+	cudaDeviceSynchronize();
+	
+//we are done, destroy plan and return!
+	cufftDestroy(plan);
+}
+//====================
+
+
+
+__global__ void scaleData(thrust::complex<float> * data, int N, float value)
+{
+	int pixelIdx_x = blockIdx.x * blockDim.x + threadIdx.x;
+	
+	if( pixelIdx_x < N )
+		data[pixelIdx_x] *= value;
+}
+
+void cufftBACK_Batched1dSignals(thrust::complex<float> * d_signals, int Nbatch, int NX){
+	
+	int dimN[NRANK] = {NX}; // signal's size (number of spatial points)
+	
+	int inembed[NRANK] = {NX}; // storage is same as dimN - no-padding!
+	int onembed[NRANK] = {NX};
+	
+	int inputStride = 1; // dist. between successive input elements
+	int outputStride = inputStride;
+	
+	int inputDist = NX; // dist. between 1st elem. in successive input signals
+	int outputDist = inputDist;
+	
+// make cuFFT plan
+	cufftHandle plan;
+	cufftPlanMany(&plan, NRANK, dimN, \
+				inembed, inputStride, inputDist, \
+				onembed, outputStride, outputDist, \
+				CUFFT_C2C, Nbatch);
+	
+//execute in-place batched IFFTs
+	cufftExecC2C(plan, (cufftComplex *)d_signals, (cufftComplex *)d_signals, CUFFT_INVERSE);
+	
+	cudaDeviceSynchronize();
+	
+/* for backward FFTs need to scale the data
+  -------------------------------------------*/
+	size_t SIZE = Nbatch * NX;
+	dim3 nThreads(64, 1, 1);
+	
+	size_t nBlocks_x = SIZE % nThreads.x == 0 ? size_t(SIZE/nThreads.x) : size_t(1 + SIZE/nThreads.x);
+	dim3 nBlocks(nBlocks_x, 1, 1);
+	
+	float scaleValue = 1.0 / (float)(NX);//scale by the signal's length
+	scaleData<<<nBlocks, nThreads>>>(d_signals, SIZE, scaleValue);
+/*-------------------------------------------*/
+
+	cudaDeviceSynchronize();
+	
+//we are done, destroy plan and return!
+	cufftDestroy(plan);
+}
+
+} // end extern "C"
+
+

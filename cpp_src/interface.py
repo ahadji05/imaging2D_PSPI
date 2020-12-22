@@ -9,6 +9,7 @@ import numpy as np
 interface_path = os.path.dirname(__file__)
 
 extrap = CDLL(interface_path + '/extrap.so')
+extrap_gpu = CDLL(interface_path + '/extrap_gpu.so')
 prepOps = CDLL(interface_path + '/prepOps.so')
 mkl_fft = CDLL(interface_path + '/mkl_fft.so')
 imag_cpu = CDLL(interface_path + '/imag_condition_cpu.so')
@@ -46,6 +47,21 @@ PSback.argtypes = [c_int, c_int, c_int,
                    ndpointer( dtype=np.float32, flags=("C","A") ),
                    c_float]
 
+#--------------------------
+#   extrap_gpu
+#--------------------------
+
+extrapolation_gpu = extrap_gpu.extrapAndImag_cu
+extrapolation_gpu.restype = c_void_p
+extrapolation_gpu.argtypes = [c_int, c_int, c_int, c_int,
+                          c_int, c_int, c_int,
+                          c_float, c_int, c_float, c_int,
+                          ndpointer( dtype=np.float32, flags=("C","A") ),
+                          ndpointer( dtype=np.float32, flags=("C","A") ),
+                          ndpointer( dtype=np.float32, flags=("C","A") ),
+                          ndpointer( dtype=np.complex64, flags=("C","A") ),
+                          ndpointer( dtype=np.complex64, flags=("C","A") ),
+                          ndpointer( dtype=np.float32, flags=("C","A") )]
 
 #--------------------------
 #   prepOps

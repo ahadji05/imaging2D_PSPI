@@ -7,12 +7,12 @@ from scipy import ndimage
 import readShotFiles
 
 sys.path.append('py_src/')
-# from extrap import extrapAndImaging
 import problemConfig as pConfig
 import util
 
 sys.path.append('./cpp_src/')
 from interface import extrapolation
+from interface import extrapolation_gpu
 
 import time
 
@@ -100,7 +100,7 @@ omega = config.w.astype(np.float32)
 kxx = config.kx.astype(np.float32)
 print("wmax:", config.w[config.nw])
 
-extrapolation(ns, config.nvel, config.nz, config.nextrap, config.nt, \
+extrapolation_gpu(ns, config.nvel, config.nz, config.nextrap, config.nt, \
     config.nw, config.nx, config.dz, 1000, kmax, config.nx, omega, kxx, \
     velocity_model, pulse_forw_fs, pulse_back_fs, image)
 
