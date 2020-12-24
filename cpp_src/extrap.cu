@@ -105,6 +105,10 @@ void extrapAndImag_cu(int ns, int nref, int nz, int nextrap, int nt, int nf, int
     dim3 nBlocks_ps(nBlocks_x, nf, 1);
     dim3 nBlocks_img(nBlocks_x, ns, 1);
 
+    //create plans for cuFFTs
+    cufftHandle planBase = make_cuFFTplan_Batched1dSignals(ns*nf, nx);
+    cufftHandle planRef = make_cuFFTplan_Batched1dSignals(ns*nref*nf, nx);
+
     for(int l=0; l<nextrap; ++l){ // start loop over depths
 
         std::cout << "Depth " << l << "\n";
@@ -120,8 +124,8 @@ void extrapAndImag_cu(int ns, int nref, int nz, int nextrap, int nt, int nf, int
 
         // do FFTs : f-x -> f-kx
         t4.start();
-        cufftFORW_Batched1dSignals(d_base_forw, ns*nf, nx);
-        cufftFORW_Batched1dSignals(d_base_back, ns*nf, nx);
+        cufftFORW_Batched1dSignals(d_base_forw, &planBase);
+        cufftFORW_Batched1dSignals(d_base_back, &planBase);
         cudaDeviceSynchronize();
         t4.stop();
 
@@ -136,8 +140,8 @@ void extrapAndImag_cu(int ns, int nref, int nz, int nextrap, int nt, int nf, int
 
         // do IFFTs : f-kx -> f-x
         t4.start();
-        cufftBACK_Batched1dSignals(d_ref_forw, ns*nref*nf, nx);
-        cufftBACK_Batched1dSignals(d_ref_back, ns*nref*nf, nx);
+        cufftBACK_Batched1dSignals(d_ref_forw, ns*nref*nf, nx, &planRef);
+        cufftBACK_Batched1dSignals(d_ref_back, ns*nref*nf, nx, &planRef);
         cudaDeviceSynchronize();
         t4.stop();
         
@@ -164,6 +168,8 @@ void extrapAndImag_cu(int ns, int nref, int nz, int nextrap, int nt, int nf, int
             for(int i=0; i<nx; ++i)
                 image[s*nz*nx + l*nx + i] = reinterpret_cast<float*>(h_image)[2*(s*nz*nx + l*nx + i)];
 
+    cufftDestroy(planBase);
+    cufftDestroy(planRef);
     cudaFree(d_base_forw);
     cudaFree(d_base_back);
     cudaFree(d_ref_forw);
