@@ -1,7 +1,7 @@
 key_value
 
 nt_800
-nw_60
+nw_200
 
 zmin_0
 zmax_2000
@@ -15,4 +15,4 @@ xmax_1000
 tmin_0.0
 tmax_0.8
 
-nvel_4
+nvel_12
