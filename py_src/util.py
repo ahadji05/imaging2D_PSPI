@@ -1,13 +1,10 @@
 import numpy as np
-from numba import njit
 from math import exp, pi, ceil
 
-@njit
 def find_nearest(array, value):
     idx = (np.abs(array - value)).argmin()
     return idx
 
-@njit
 def ricker_wv_map(t_t0):
     fmax = 30 #Hz
     term = pi*pi*fmax*fmax*(t_t0)*(t_t0)

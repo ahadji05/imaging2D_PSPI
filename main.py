@@ -10,9 +10,7 @@ sys.path.append('py_src/')
 import problemConfig as pConfig
 import util
 
-sys.path.append('./cpp_src/')
-from interface import extrapolation
-from interface import extrapolation_gpu
+sys.path.append('interface/')
 
 import time
 
@@ -26,8 +24,17 @@ file_vel = sys.argv[1] #filename of velocity model (csv)
 file_config = sys.argv[2] #filename of configuration
 shots_dir = sys.argv[3] #directory to shots
 path_to_output = sys.argv[4] #path to output directory
-# option = int(sys.argv[5]) #select either host or device
+option = str(sys.argv[5])
 
+if option == "host":
+    from interface_cpu import PWM2d as run_PWM2d
+elif option == "devAMD":
+    from interface_hip import PWM2d_AMD as run_PWM2d
+elif option == "devCUDA":
+    from interface_cuda import PWM2d_CUDA as run_PWM2d
+else:
+    print("NO VALID OPTION HAS BEEN SPECIFIED")
+    exit()
 #   ------------------------------------------
 #   READ VELOCITY MODEL
 
@@ -100,7 +107,7 @@ omega = config.w.astype(np.float32)
 kxx = config.kx.astype(np.float32)
 print("wmax:", config.w[config.nw])
 
-extrapolation_gpu(ns, config.nvel, config.nz, config.nextrap, config.nt, \
+run_PWM2d(ns, config.nvel, config.nz, config.nextrap, config.nt, \
     config.nw, config.nx, config.dz, 1000, kmax, config.nx, omega, kxx, \
     velocity_model, pulse_forw_fs, pulse_back_fs, image)
 
