@@ -1,5 +1,5 @@
 
-#include "prepOps.h"
+#include "prep_operators.hpp"
 
 extern "C"
 
@@ -62,7 +62,7 @@ void forwOperators(fcomp * psOp, int nk, float * k, int nkx, float * kx, float d
                 float term = std::sqrt( std::pow(kx[i],2) - std::pow(k[j], 2) );
                 kz = -fcomp(0.0,1.0) * term;
             }
-            psOp[j*nkx + i] = thrust::exp( -fcomp(0.0,1.0) * (kz - k[j]) * dz );
+            psOp[j*nkx + i] = pwm::exp( -fcomp(0.0,1.0) * (kz - k[j]) * dz );
         }
     }
 }
@@ -99,7 +99,7 @@ void backOperators(fcomp * psOp, int nk, float * k, int nkx, float * kx, float d
                 float term = std::sqrt( std::pow(kx[i],2) - std::pow(k[j], 2) );
                 kz = +fcomp(0.0,1.0) * term;
             }
-            psOp[j*nkx + i] = thrust::exp( +fcomp(0.0,1.0) * (kz - k[j]) * dz );
+            psOp[j*nkx + i] = pwm::exp( +fcomp(0.0,1.0) * (kz - k[j]) * dz );
         }
     }
 }

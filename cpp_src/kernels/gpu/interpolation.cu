@@ -1,5 +1,5 @@
 
-#include "interpolate.h"
+#include "interpolation.hpp"
 
 extern "C"
 

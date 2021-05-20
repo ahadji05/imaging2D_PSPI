@@ -3,15 +3,16 @@
 #include <cstring>
 #include <cmath>
 
-#include "deviceCUDA_FFTs.h"
-#include "imag_condition.h"
-#include "interpolate.h"
-#include "prepOps.h"
-#include "types.h"
-#include "timer.h"
+#include "device_CUDA_fft.hpp"
+#include "imaging_conditions.hpp"
+#include "interpolation.hpp"
+#include "prep_operators.hpp"
+#include "phase_shifts.hpp"
+#include "types.hpp"
+#include "timer.hpp"
+#include "utils.hpp"
 
 extern "C"
-
 {
 
 timer tall("total time");
@@ -21,24 +22,6 @@ timer t2("interpolation");
 timer t3("prepOps");
 timer t4("FFTs");
 timer t5("phase-shift");
-    
-/* ----------------------- Forward function declarations ----------------------- */
-__global__ void phase_shift_forw_cu(int ns, int nf, int nx, float * velSlide, \
-    float * omega, float dz, fcomp * wavefield);
-__global__ void phase_shift_back_cu(int ns, int nf, int nx, float * velSlide, \
-    float * omega, float dz, fcomp * wavefield);
-__global__ void extrap_ref_wavefields_cu(int ns, int nf, int nx, int nref, \
-    fcomp * ref, fcomp * base,
-    int * opIndices, fcomp * table);
-
-float find_min_vel(int , float * );
-float find_max_vel(int , float * );
-void define_ref_velocities(int , float , float , float * );
-int * prep_lookUp_indices(int , float * , int , int , float * , int , int , float * );
-float * prep_interpolation_coeff(float * , int , int , int );
-/* -------------------------------------------------------------------------------*/
-
-
 
 // FUNCTION SCOPE: migration of 2D wavefields using PSPI with a fixed number of
 //    propagation velocities as defined according to the min and max velocities
@@ -97,7 +80,7 @@ void extrapAndImag_cu(int ns, int nref, int nz, int nextrap, int nt, int nf, int
     cudaMemcpy(d_coeff, coeff, nextrap*nref*nx*sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(d_velmod, velmod, nz*nx*sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(d_omega, omega, Nk*sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemset(d_image, 0, ns*nz*nx*sizeof(float));
+    cudaMemset(d_image, 0, 2*ns*nz*nx*sizeof(float));
 
     dim3 nThreads(32, 1, 1);
     size_t nBlocks_x = nx % nThreads.x == 0 ? size_t(nx/nThreads.x) : size_t(1 + nx/nThreads.x);
@@ -156,7 +139,7 @@ void extrapAndImag_cu(int ns, int nref, int nz, int nextrap, int nt, int nf, int
         
         // image depth slide
         t1.start();
-        imaging<<<nBlocks_img, nThreads>>>(d_image, d_base_forw, d_base_back, ns, nf, nx, l, imgSize);
+        imaging_cu<<<nBlocks_img, nThreads>>>(d_image, d_base_forw, d_base_back, ns, nf, nx, l, imgSize);
         cudaDeviceSynchronize();
         t1.stop();
 
@@ -200,172 +183,4 @@ void extrapAndImag_cu(int ns, int nref, int nz, int nextrap, int nt, int nf, int
     t5.dispInfo();
 }
 
-
-__global__ void phase_shift_forw_cu(int ns, int nf, int nx, float * velSlide, \
-    float * omega, float dz, fcomp * wavefield){
-
-    int idx_x = blockDim.x * blockIdx.x + threadIdx.x;
-    int idx_f = blockDim.y * blockIdx.y + threadIdx.y;
-    int shotSz = nf*nx;
-
-    if(idx_x < nx && idx_f < nf){
-        float k = omega[idx_f] / velSlide[idx_x];
-        fcomp term = -fcomp(0.0,1.0) * k * dz;
-        term = thrust::exp(term);
-
-        for(int s=0; s<ns; ++s)
-            wavefield[s*shotSz + idx_f*nx + idx_x] *= term;    
-    }
-}
-
-
-
-__global__ void phase_shift_back_cu(int ns, int nf, int nx, float * velSlide, \
-    float * omega, float dz, fcomp * wavefield){
-
-    int idx_x = blockDim.x * blockIdx.x + threadIdx.x;
-    int idx_f = blockDim.y * blockIdx.y + threadIdx.y;
-    int shotSz = nf*nx;
-
-    if(idx_x < nx && idx_f < nf){
-        float k = omega[idx_f] / velSlide[idx_x];
-        fcomp term = +fcomp(0.0,1.0) * k * dz;
-        term = thrust::exp(term);
-
-        for(int s=0; s<ns; ++s)
-            wavefield[s*shotSz + idx_f*nx + idx_x] *= term;    
-    }
-}
-
-
-
-__global__ void extrap_ref_wavefields_cu(int ns, int nf, int nx, int nref, \
-    fcomp * ref, fcomp * base, int * opIndices, fcomp * table){
-
-    int idx_x = blockDim.x * blockIdx.x + threadIdx.x;
-    int idx_f = blockDim.y * blockIdx.y + threadIdx.y;
-    int idx_s = blockDim.z * blockIdx.z + threadIdx.z;
-    int baseIdx = idx_s*nf*nx + idx_f*nx + idx_x;
-    fcomp basePoint;
-    
-    int fRef = idx_f*nx;
-    int sRef = idx_s*nref*nf*nx;
-
-    if(baseIdx < ns*nf*nx){
-        basePoint = base[baseIdx]; //keep value from the base wavefield in registers
-
-        for(int n=0; n<nref; ++n){
-            int vRef = n*nf*nx;
-            int opIdx = opIndices[idx_f*nref + n] * nx;// find operator's index based on frequency and reference velocity
-            ref[sRef + vRef + fRef + idx_x] = table[opIdx + idx_x] * basePoint;
-        }
-    }
-}
-
-
-float find_min_vel(int N, float * refVels){
-    
-    float min_vel = 1000000.0; // some very large value
-
-    for(int i=0; i<N; ++i){
-        if (refVels[i] < min_vel)
-            min_vel = refVels[i];
-    }
-
-    return min_vel;
-}
-
-
-
-float find_max_vel(int N, float * refVels){
-    
-    float max_vel = 0.0; // some very small value
-
-    for(int i=0; i<N; ++i){
-        if (refVels[i] > max_vel)
-            max_vel = refVels[i];
-    }
-
-    return max_vel;
-}
-
-
-
-void define_ref_velocities(int nref, float min_vel, float max_vel, float * refVels){
-
-    int N = nref-1;
-    float dvel = (max_vel - min_vel) / N;
-
-    for(int i=0; i<nref; ++i)
-        refVels[i] = min_vel + i*dvel;
-
-}
-
-
-
-int * prep_lookUp_indices(int Nf, float * omega, int Nextrap, int Nx, float * velmod, \
-    int Nref, int Nk, float * k){
-
-    int tableOfIndicesSize = Nextrap * Nf * Nref;
-
-    int * table = new int[tableOfIndicesSize];
-    float * refVels = new float[Nref];
-
-    for(int l=0; l<Nextrap; ++l){
-
-        //define ref. velocities for current depth!
-        float minVel = find_min_vel(Nx, &velmod[l*Nx]);
-        float maxVel = find_max_vel(Nx, &velmod[l*Nx]);
-        define_ref_velocities(Nref, minVel, maxVel, &refVels[0]);
-        
-        for(int j=0; j<Nf; ++j)
-            for(int n=0; n<Nref; ++n){
-
-                float kref = omega[j] / refVels[n];
-
-                table[l*Nf*Nref + j*Nref + n] = chooseOperatorIndex(Nk, &k[0], kref);
-            
-            }
-    }
-    
-    delete [] refVels;
-
-/*check for Nan values*/
-    for(int i=0; i<tableOfIndicesSize; ++i){
-        if( std::isnan(table[i])){
-            std::cout << "Nan value identified\n";
-            exit(1);
-        }
-    }
-
-/*check for invalid values*/
-    for(int i=0; i<tableOfIndicesSize; ++i){
-        if( table[i] >= Nk ){
-            std::cout << "index cannot be >= Nk\n";
-            exit(1);
-        }
-    }
-
-    return table;
-}
-
-float * prep_interpolation_coeff(float * velmod, int nextrap, int nref, int nx){
-
-    float * coeff = new float[nextrap*nref*nx];
-    float * refVels = new float[nref];
-
-    for(int l=0; l<nextrap; ++l){
-        float vmin = find_min_vel(nx, &velmod[l*nx]);
-        float vmax = find_max_vel(nx, &velmod[l*nx]);
-        define_ref_velocities(nref, vmin, vmax, refVels);
-        find_coeff(nx, &velmod[l*nx], nref, refVels, &coeff[l*nref*nx]);
-        norm_coeff(nx, nref, &coeff[l*nref*nx]);
-    }
-
-    delete [] refVels;
-    return coeff;
-}
-
 } // end extern "C"
-
-

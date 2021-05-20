@@ -1,9 +1,13 @@
 
-#include "imag_condition.h"
+#include "imaging_conditions.hpp"
 
-__global__ void imaging(fcomp * image, fcomp * forw_pulse, fcomp * back_pulse, \
-    int ns, int nf, int nx, int depthIdx, int imgSize)
+extern "C"
+
 {
+
+__global__ void imaging_cu(fcomp * image, fcomp * forw_pulse, fcomp * back_pulse, \
+    int ns, int nf, int nx, int depthIdx, int imgSize){
+
     int idx_x = blockIdx.x * blockDim.x + threadIdx.x;
     int idx_s = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -16,3 +20,5 @@ __global__ void imaging(fcomp * image, fcomp * forw_pulse, fcomp * back_pulse, \
 
     image[idx_s*imgSize + depthIdx*nx + idx_x] = conv;
 }
+
+} // end extern "C"

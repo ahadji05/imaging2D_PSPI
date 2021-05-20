@@ -1,5 +1,5 @@
 
-#include "deviceCUDA_FFTs.h"
+#include "device_CUDA_fft.hpp"
 
 extern "C"
 {
@@ -27,17 +27,15 @@ cufftHandle make_cuFFTplan_Batched1dSignals(int Nbatch, int NX){
 	return plan;
 }
 
+
 void cufftFORW_Batched1dSignals(thrust::complex<float> * d_signals, cufftHandle * plan){
 	
 	//execute in-place batched FFTs
 	cufftExecC2C(*plan, (cufftComplex *)d_signals, (cufftComplex *)d_signals, CUFFT_FORWARD);
-
 }
-//====================
 
 
-
-__global__ void scaleData(thrust::complex<float> * data, int N, float value)
+__global__ void cu_scaleData(fcomp * data, int N, float value)
 {
 	int pixelIdx_x = blockIdx.x * blockDim.x + threadIdx.x;
 	
@@ -45,7 +43,8 @@ __global__ void scaleData(thrust::complex<float> * data, int N, float value)
 		data[pixelIdx_x] *= value;
 }
 
-void cufftBACK_Batched1dSignals(thrust::complex<float> * d_signals, int Nbatch, int NX, cufftHandle * plan){
+
+void cufftBACK_Batched1dSignals(fcomp* d_signals, int Nbatch, int NX, cufftHandle * plan){
 
 	//execute in-place batched IFFTs
 	cufftExecC2C(*plan, (cufftComplex *)d_signals, (cufftComplex *)d_signals, CUFFT_INVERSE);
@@ -61,11 +60,8 @@ void cufftBACK_Batched1dSignals(thrust::complex<float> * d_signals, int Nbatch, 
 	dim3 nBlocks(nBlocks_x, 1, 1);
 	
 	float scaleValue = 1.0 / (float)(NX);//scale by the signal's length
-	scaleData<<<nBlocks, nThreads>>>(d_signals, SIZE, scaleValue);
+	cu_scaleData<<<nBlocks, nThreads>>>(d_signals, SIZE, scaleValue);
 /*-------------------------------------------*/
-
 }
 
 } // end extern "C"
-
-

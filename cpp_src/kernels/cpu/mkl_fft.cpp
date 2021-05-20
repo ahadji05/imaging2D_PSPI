@@ -1,10 +1,9 @@
 
-#include "mkl_fft.h"
+#include "mkl_fft.hpp"
 
 extern "C"
 
 {
-
 
 // FUNCTION SCOPE: perform 1d forward FFT
 // INPUT parameters:

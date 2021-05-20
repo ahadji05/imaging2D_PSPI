@@ -1,9 +1,10 @@
-#ifndef PREPOPS_H
-#define PREPOPS_H
+#ifndef PREP_OPERATORS_HPP
+#define PREP_OPERATORS_HPP
 
-#include "types.h"
+
 #include <iostream>
 #include <vector>
+#include "types.hpp"
 
 extern "C"
 
