@@ -7,9 +7,14 @@
 #include "imaging_conditions.hpp"
 #include "phase_shifts.hpp"
 #include "prep_operators.hpp"
-#include "mkl_fft.hpp"
 #include "timer.hpp"
 #include "utils.hpp"
+
+#ifdef ENABLE_FFTW_PWM
+#include "fftw_fft.hpp"
+#else
+#include "mkl_fft.hpp"
+#endif
 
 extern "C"
 
@@ -75,9 +80,15 @@ void extrapAndImag(int ns, int nref, int nz, int nextrap, int nt, int nf, int nx
 
         // do FFTs : f-x -> f-kx
         t4.start();
+#ifdef ENABLE_FFTW_PWM
+	int fftw_forward = -1;
+	batched1dffts(base_forw, ns*nf, nx, fftw_forward);
+	batched1dffts(base_back, ns*nf, nx, fftw_forward);
+#else
         fft1dforwardFrom2Darray(base_forw, ns*nf, nx, 1);
         fft1dforwardFrom2Darray(base_back, ns*nf, nx, 1);
-        t4.stop();
+#endif
+	t4.stop();
 
         // propagate the base wavefields to reference wavefields
         t0.start();
@@ -89,9 +100,15 @@ void extrapAndImag(int ns, int nref, int nz, int nextrap, int nt, int nf, int nx
 
         // do IFFTs : f-kx -> f-x
         t4.start();
+#ifdef ENABLE_FFTW_PWM
+	int fft_inverse = +1;
+	batched1dffts(ref_forw, ns*nref*nf, nx, fft_inverse);
+	batched1dffts(ref_back, ns*nref*nf, nx, fft_inverse);
+#else
         fft1dbackwardFrom2Darray(ref_forw, ns*nref*nf, nx, 1);
         fft1dbackwardFrom2Darray(ref_back, ns*nref*nf, nx, 1);            
-        t4.stop();
+#endif
+	t4.stop();
         
         // interpolation : from ref. wavefields to base wavefields
         t2.start();
